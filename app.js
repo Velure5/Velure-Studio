@@ -1,5 +1,9 @@
 console.log('app.js loaded - Version 2.0 - ' + new Date().toISOString());
 
+// Set global background color
+document.body.style.backgroundColor = '#0a0a0a';
+document.documentElement.style.backgroundColor = '#0a0a0a';
+
 // AI API Configuration - User will input their own API key
 let userApiKey = localStorage.getItem('geminiApiKey') || '';
 
@@ -149,102 +153,58 @@ Once all answers are collected, synthesize them into a single, final message tha
     setTimeout(() => setCopiedMessageIndex(null), 2000);
   };
 
-  // --- Image Generation State and Logic ---
-  const [imagePrompt, setImagePrompt] = React.useState('');
-  const [generatedImage, setGeneratedImage] = React.useState(null);
-  const [isImageLoading, setIsImageLoading] = React.useState(false);
+  // --- Prompt Enhancement State and Logic ---
+  const [promptInput, setPromptInput] = React.useState('');
+  const [enhancedPrompt, setEnhancedPrompt] = React.useState('');
+  const [isEnhancing, setIsEnhancing] = React.useState(false);
 
-  const generateImage = async () => {
-    if (imagePrompt.trim() === '' || isImageLoading) return;
+  const enhancePrompt = async () => {
+    if (promptInput.trim() === '' || isEnhancing) return;
 
-    console.log('=== IMAGE GENERATION STARTED ===');
-    console.log('Image prompt:', imagePrompt);
+    console.log('=== PROMPT ENHANCEMENT STARTED ===');
+    console.log('Input prompt:', promptInput);
     console.log('User API key exists:', !!userApiKey);
 
-    // Note: Image generation doesn't require API key, but chat does
-    console.log('Note: Image generation uses free APIs, chat requires Gemini API key');
+    if (!userApiKey) {
+      alert('Please set your Gemini API key in the settings (⚙️) to enhance prompts.');
+      return;
+    }
 
-    setGeneratedImage(null); // Clear previous image
-    setIsImageLoading(true);
+    setEnhancedPrompt(''); // Clear previous result
+    setIsEnhancing(true);
 
     try {
-            // Use Gemini API for image generation
-      console.log('Using Gemini API for image generation...');
+      // Use Gemini to enhance the prompt
+      console.log('Using Gemini to enhance prompt...');
       
-      if (!userApiKey) {
-        console.log('No Gemini API key found, creating placeholder...');
-        // Create placeholder image
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        
-        // Create a beautiful gradient background
-        const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-        gradient.addColorStop(0, '#667eea');
-        gradient.addColorStop(1, '#764ba2');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // Add the prompt text
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 18px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('AI Generated Image', 256, 150);
-        
-        ctx.font = '14px Arial';
-        ctx.fillText('Prompt:', 256, 180);
-        
-        // Split long prompts into multiple lines
-        const words = imagePrompt.split(' ');
-        const lines = [];
-        let currentLine = '';
-        
-        for (const word of words) {
-          if ((currentLine + word).length > 30) {
-            lines.push(currentLine);
-            currentLine = word;
-          } else {
-            currentLine += (currentLine ? ' ' : '') + word;
-          }
-        }
-        if (currentLine) lines.push(currentLine);
-        
-        ctx.font = '12px Arial';
-        lines.forEach((line, index) => {
-          ctx.fillText(line, 256, 200 + (index * 20));
-        });
-        
-        ctx.font = '12px Arial';
-        ctx.fillText('Powered by Gemini AI', 256, 450);
-        
-        const placeholderUrl = canvas.toDataURL('image/png');
-        setGeneratedImage(placeholderUrl);
-        return;
-      }
-
-      // Use the main Gemini image generation model
-      console.log('Using Gemini image generation model...');
-      
-      const model = 'gemini-2.0-flash-preview-image-generation';
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userApiKey}`;
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${userApiKey}`;
       
       const payload = {
         contents: [{
           parts: [{
-            text: `Generate an image: ${imagePrompt}`
+            text: `You are an expert image prompt engineer. Take this user's image description and enhance it into a detailed, professional image generation prompt that would work perfectly with AI image generators like DALL-E, Midjourney, or Stable Diffusion. 
+
+Make it specific, detailed, and include technical terms for:
+- Lighting and atmosphere
+- Camera angle and composition
+- Style and artistic direction
+- Image quality and resolution
+- Color palette and mood
+
+User's description: ${promptInput}
+
+Please provide only the enhanced prompt, nothing else. Make it ready to copy-paste into any AI image generator.`
           }]
         }],
         generationConfig: {
           temperature: 0.7,
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 2048,
+          maxOutputTokens: 1000,
         }
       };
 
       console.log('Sending request to Gemini API...');
-      console.log('API URL:', apiUrl);
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -263,86 +223,31 @@ Once all answers are collected, synthesize them into a single, final message tha
       }
 
       const result = await response.json();
-      console.log('Image generation response:', result);
+      console.log('Prompt enhancement response:', result);
 
       if (result.candidates && result.candidates.length > 0 && 
           result.candidates[0].content && result.candidates[0].content.parts && 
           result.candidates[0].content.parts.length > 0) {
         
-        // Look for image data in the response
-        const imagePart = result.candidates[0].content.parts.find(part => part.inlineData);
-        
-        if (imagePart && imagePart.inlineData) {
-          const imageData = imagePart.inlineData.data;
-          const imageUrl = `data:image/png;base64,${imageData}`;
-          setGeneratedImage(imageUrl);
-          console.log('Image generated successfully');
-        } else {
-          console.error('No image data found in response. Full response:', result);
-          throw new Error('Gemini returned text instead of image');
-        }
+        const enhancedText = result.candidates[0].content.parts[0].text;
+        setEnhancedPrompt(enhancedText);
+        console.log('Prompt enhanced successfully');
       } else {
-        console.error('Error generating image: Invalid API response format.', result);
+        console.error('Error enhancing prompt: Invalid API response format.', result);
         throw new Error('Invalid API response format');
       }
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 512;
-      const ctx = canvas.getContext('2d');
-      
-      // Create a beautiful gradient background
-      const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-      gradient.addColorStop(0, '#667eea');
-      gradient.addColorStop(1, '#764ba2');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 512, 512);
-      
-      // Add the prompt text
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 18px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('AI Generated Image', 256, 150);
-      
-      ctx.font = '14px Arial';
-      ctx.fillText('Prompt:', 256, 180);
-      
-      // Split long prompts into multiple lines
-      const words = imagePrompt.split(' ');
-      const lines = [];
-      let currentLine = '';
-      
-      for (const word of words) {
-        if ((currentLine + word).length > 30) {
-          lines.push(currentLine);
-          currentLine = word;
-        } else {
-          currentLine += (currentLine ? ' ' : '') + word;
-        }
-      }
-      if (currentLine) lines.push(currentLine);
-      
-      ctx.font = '12px Arial';
-      lines.forEach((line, index) => {
-        ctx.fillText(line, 256, 200 + (index * 20));
-      });
-      
-      ctx.font = '12px Arial';
-      ctx.fillText('Powered by AI', 256, 450);
-      
-      const placeholderUrl = canvas.toDataURL('image/png');
-      setGeneratedImage(placeholderUrl);
 
     } catch (error) {
-      console.error('Error during image generation:', error);
-      setGeneratedImage('error');
+      console.error('Error during prompt enhancement:', error);
+      setEnhancedPrompt('Error: Could not enhance prompt. Please try again.');
     } finally {
-      setIsImageLoading(false);
+      setIsEnhancing(false);
     }
   };
 
   return React.createElement('div', {
-    className: "flex flex-col min-h-screen bg-neutral-950 text-neutral-50 font-sans antialiased items-center p-4 gap-8"
+    className: "flex flex-col min-h-screen bg-neutral-950 text-neutral-50 font-sans antialiased items-center p-4 gap-8",
+    style: { minHeight: '100vh', backgroundColor: '#0a0a0a' }
   }, [
     // Top bar with the title and settings button
     React.createElement('header', {
@@ -447,86 +352,82 @@ Once all answers are collected, synthesize them into a single, final message tha
         ])
       ]),
 
-      // Image Generation Section
+      // Prompt Enhancement Section
       React.createElement('div', {
-        key: 'image-generation',
+        key: 'prompt-enhancement',
         className: "flex flex-col md:flex-row bg-neutral-800/50 rounded-lg shadow-xl backdrop-blur-xl border border-neutral-700/50 p-4"
       }, [
         React.createElement('div', {
-          key: 'image-input',
+          key: 'prompt-input',
           className: "flex-1 flex flex-col gap-4"
         }, [
           React.createElement('h3', {
-            key: 'image-title',
+            key: 'prompt-title',
             className: "text-lg font-bold text-neutral-200"
-          }, "Image Generation"),
+          }, "Prompt Enhancement"),
           React.createElement('textarea', {
-            key: 'image-prompt',
-            value: imagePrompt,
-            onChange: (e) => setImagePrompt(e.target.value),
-            placeholder: userApiKey ? "Describe the image you want to create..." : "Set API key in settings to generate images...",
+            key: 'prompt-input-field',
+            value: promptInput,
+            onChange: (e) => setPromptInput(e.target.value),
+            placeholder: userApiKey ? "Paste your prompt from the chat above to enhance it..." : "Set API key in settings to enhance prompts...",
             className: "flex-1 w-full bg-neutral-900/50 text-neutral-100 placeholder-neutral-500 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-neutral-600 transition-colors duration-300 resize-none",
-            disabled: isImageLoading || !userApiKey,
+            disabled: isEnhancing || !userApiKey,
             autoComplete: "off"
           }),
           React.createElement('button', {
-            key: 'generate-button',
-            onClick: generateImage,
+            key: 'enhance-button',
+            onClick: enhancePrompt,
             className: "px-6 py-2 bg-neutral-700 text-neutral-100 rounded-full font-semibold hover:bg-neutral-600 transition-all duration-300",
-            disabled: isImageLoading || !userApiKey
-          }, isImageLoading ? 'Generating...' : 'Generate Image')
+            disabled: isEnhancing || !userApiKey
+          }, isEnhancing ? 'Enhancing...' : 'Enhance Prompt')
         ]),
         React.createElement('div', {
-          key: 'image-display',
+          key: 'enhanced-prompt-display',
           className: "flex-1 flex flex-col justify-center items-center overflow-hidden p-4"
         }, [
-          isImageLoading ? 
+          isEnhancing ? 
             React.createElement('div', {
-              key: 'image-loading',
+              key: 'enhancing-loading',
               className: "text-neutral-400 text-lg animate-pulse"
-            }, "Generating image...") :
-          generatedImage === 'error' ? 
+            }, "Enhancing prompt...") :
+          enhancedPrompt ? 
+            (enhancedPrompt.startsWith('Error:') ? 
+              React.createElement('div', {
+                key: 'enhancement-error',
+                className: "text-red-400 text-lg"
+              }, enhancedPrompt) :
+              React.createElement('div', {
+                key: 'enhanced-prompt-container',
+                className: "w-full h-full flex flex-col items-center justify-center"
+              }, [
+                React.createElement('h4', {
+                  key: 'enhanced-title',
+                  className: "text-lg font-semibold text-neutral-200 mb-4"
+                }, "Enhanced Prompt"),
+                React.createElement('div', {
+                  key: 'enhanced-prompt-text',
+                  className: "bg-neutral-900/50 p-4 rounded-lg max-w-full max-h-64 overflow-y-auto text-sm text-neutral-200 leading-relaxed mb-4"
+                }, enhancedPrompt),
+                React.createElement('button', {
+                  key: 'copy-prompt',
+                  onClick: () => copyToClipboard(enhancedPrompt, 'enhanced'),
+                  className: "px-4 py-2 bg-neutral-700 text-neutral-100 rounded-full font-semibold hover:bg-neutral-600 transition-all duration-300",
+                  title: "Copy enhanced prompt to clipboard"
+                }, "Copy Prompt")
+              ])
+            ) :
             React.createElement('div', {
-              key: 'image-error',
-              className: "text-red-400 text-lg"
-                          }, "Error generating image. Please try again.") :
-          generatedImage ? 
-            React.createElement('div', {
-              key: 'image-container',
-              className: "w-full h-full flex flex-col items-center justify-center"
-            }, [
-              React.createElement('img', {
-                key: 'generated-image',
-                src: generatedImage,
-                alt: "Generated by AI",
-                className: "max-w-full max-h-full object-contain rounded-lg shadow-md animate-fade-in mb-4"
-              }),
-              React.createElement('button', {
-                key: 'download-button',
-                onClick: () => {
-                  const link = document.createElement('a');
-                  link.href = generatedImage;
-                  link.download = `velure-studio-image-${Date.now()}.png`;
-                  document.body.appendChild(link);
-                  link.click();
-                  document.body.removeChild(link);
-                },
-                className: "px-4 py-2 bg-neutral-700 text-neutral-100 rounded-full font-semibold hover:bg-neutral-600 transition-all duration-300",
-                title: "Download image"
-              }, "Download Image")
-            ]) :
-            React.createElement('div', {
-              key: 'image-placeholder',
+              key: 'prompt-placeholder',
               className: "text-neutral-400 text-lg italic text-center"
             }, [
               React.createElement('p', {
                 key: 'placeholder-text',
                 className: "mb-2"
-              }, "Enter a description and I'll generate an image for you."),
+              }, "Paste your prompt from the chat above to enhance it."),
               React.createElement('p', {
                 key: 'placeholder-subtext',
                 className: "text-sm text-neutral-500"
-              }, "Powered by Gemini AI.")
+              }, "I'll create a professional prompt ready for DALL-E, Midjourney, or Stable Diffusion.")
             ])
         ])
       ])
