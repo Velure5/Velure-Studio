@@ -430,6 +430,31 @@ Please provide only the enhanced prompt, nothing else. Make it ready to copy-pas
               }, "I'll create a professional prompt ready for DALL-E, Midjourney, or Stable Diffusion.")
             ])
         ])
+      ]),
+
+      // Hugging Face Space Section
+      React.createElement('div', {
+        key: 'huggingface-section',
+        className: "w-full max-w-4xl bg-neutral-800/50 rounded-lg shadow-xl backdrop-blur-xl border border-neutral-700/50 p-4"
+      }, [
+        React.createElement('h3', {
+          key: 'hf-title',
+          className: "text-lg font-bold text-neutral-200 mb-4"
+        }, "AI Image Generator"),
+        React.createElement('div', {
+          key: 'iframe-container',
+          className: "w-full flex justify-center"
+        }, [
+          React.createElement('iframe', {
+            key: 'hf-iframe',
+            src: "https://amirgame197-pollinations-image-generator.hf.space",
+            className: "w-full max-w-4xl h-[450px] border-0 rounded-lg shadow-lg",
+            style: { 
+              backgroundColor: '#1a1a1a',
+              minHeight: '450px'
+            }
+          })
+        ])
       ])
     ]),
 
