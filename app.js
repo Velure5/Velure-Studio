@@ -157,101 +157,127 @@ Once all answers are collected, synthesize them into a single, final message tha
   const generateImage = async () => {
     if (imagePrompt.trim() === '' || isImageLoading) return;
 
-    console.log('=== GEMINI IMAGE GENERATION STARTED ===');
+    console.log('=== IMAGE GENERATION STARTED ===');
     console.log('Image prompt:', imagePrompt);
     console.log('User API key exists:', !!userApiKey);
 
-    // Check if API key is set
-    if (!userApiKey) {
-      alert('Please set your Gemini API key in the settings (⚙️) to generate images.');
-      return;
-    }
+    // Note: Image generation doesn't require API key, but chat does
+    console.log('Note: Image generation uses free APIs, chat requires Gemini API key');
 
     setGeneratedImage(null); // Clear previous image
     setIsImageLoading(true);
 
     try {
-            // Use a free image generation API since Gemini doesn't support image generation
-      console.log('Using free image generation API...');
+            // Try multiple free image generation APIs
+      console.log('Trying free image generation APIs...');
       
-      const apiUrl = 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      const apis = [
+        {
+          url: 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
         },
-        body: JSON.stringify({
-          inputs: imagePrompt
-        })
-      });
-
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        // If the free API fails, create a placeholder image
-        console.log('Free API failed, creating placeholder image...');
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = 512;
-        canvas.height = 512;
-        const ctx = canvas.getContext('2d');
-        
-        // Create a beautiful gradient background
-        const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-        gradient.addColorStop(0, '#667eea');
-        gradient.addColorStop(1, '#764ba2');
-        ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // Add the prompt text
-        ctx.fillStyle = 'white';
-        ctx.font = 'bold 18px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('AI Generated Image', 256, 150);
-        
-        ctx.font = '14px Arial';
-        ctx.fillText('Prompt:', 256, 180);
-        
-        // Split long prompts into multiple lines
-        const words = imagePrompt.split(' ');
-        const lines = [];
-        let currentLine = '';
-        
-        for (const word of words) {
-          if ((currentLine + word).length > 30) {
-            lines.push(currentLine);
-            currentLine = word;
-          } else {
-            currentLine += (currentLine ? ' ' : '') + word;
-          }
+        {
+          url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
+        },
+        {
+          url: 'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
         }
-        if (currentLine) lines.push(currentLine);
-        
-        ctx.font = '12px Arial';
-        lines.forEach((line, index) => {
-          ctx.fillText(line, 256, 200 + (index * 20));
-        });
-        
-        ctx.font = '12px Arial';
-        ctx.fillText('Powered by AI', 256, 450);
-        
-        const placeholderUrl = canvas.toDataURL('image/png');
-        setGeneratedImage(placeholderUrl);
-        return;
+      ];
+
+      let lastError = null;
+
+      for (const api of apis) {
+        try {
+          console.log(`Trying API: ${api.url}`);
+          
+          const response = await fetch(api.url, {
+            method: 'POST',
+            headers: api.headers,
+            body: JSON.stringify(api.body)
+          });
+
+          console.log('Response status:', response.status);
+
+          if (!response.ok) {
+            console.log(`API failed with status ${response.status}, trying next...`);
+            lastError = new Error(`API ${response.status}: ${response.statusText}`);
+            continue;
+          }
+
+          // Get the image as blob
+          const imageBlob = await response.blob();
+          console.log('Image blob size:', imageBlob.size);
+          
+          if (imageBlob.size === 0) {
+            throw new Error('Empty image response');
+          }
+
+          const imageUrl = URL.createObjectURL(imageBlob);
+          setGeneratedImage(imageUrl);
+          console.log('Image generated successfully');
+          return; // Success, exit the function
+
+        } catch (error) {
+          console.error('API attempt failed:', error);
+          lastError = error;
+          continue; // Try next API
+        }
       }
 
-      // Get the image as blob
-      const imageBlob = await response.blob();
-      console.log('Image blob size:', imageBlob.size);
+      // If all APIs failed, create a placeholder image
+      console.log('All free APIs failed, creating placeholder image...');
       
-      if (imageBlob.size === 0) {
-        throw new Error('Empty image response');
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      
+      // Create a beautiful gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 512, 512);
+      
+      // Add the prompt text
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 18px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('AI Generated Image', 256, 150);
+      
+      ctx.font = '14px Arial';
+      ctx.fillText('Prompt:', 256, 180);
+      
+      // Split long prompts into multiple lines
+      const words = imagePrompt.split(' ');
+      const lines = [];
+      let currentLine = '';
+      
+      for (const word of words) {
+        if ((currentLine + word).length > 30) {
+          lines.push(currentLine);
+          currentLine = word;
+        } else {
+          currentLine += (currentLine ? ' ' : '') + word;
+        }
       }
-
-      const imageUrl = URL.createObjectURL(imageBlob);
-      setGeneratedImage(imageUrl);
-      console.log('Image generated successfully');
+      if (currentLine) lines.push(currentLine);
+      
+      ctx.font = '12px Arial';
+      lines.forEach((line, index) => {
+        ctx.fillText(line, 256, 200 + (index * 20));
+      });
+      
+      ctx.font = '12px Arial';
+      ctx.fillText('Powered by AI', 256, 450);
+      
+      const placeholderUrl = canvas.toDataURL('image/png');
+      setGeneratedImage(placeholderUrl);
 
     } catch (error) {
       console.error('Error during image generation:', error);
