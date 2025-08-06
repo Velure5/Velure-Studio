@@ -49,7 +49,7 @@ Then, guide the user step-by-step through the following categories to fully unde
 - Ask: “Any overall aesthetic or creative direction you want to emphasize?” (e.g., futuristic, nostalgic, surreal, minimal, editorial)
 
 Once all answers are collected, synthesize them into a world-class, studio-level image prompt. Prioritize clarity, creativity, and cohesion. Always aim for high-end fashion or commercial quality.
-`);
+  `);
   const [tempApiKey, setTempApiKey] = React.useState(userApiKey);
   const [copiedMessageIndex, setCopiedMessageIndex] = React.useState(null);
 
