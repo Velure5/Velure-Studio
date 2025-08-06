@@ -12,10 +12,9 @@ const App = () => {
   const [messageInput, setMessageInput] = React.useState('');
   const [isChatLoading, setIsChatLoading] = React.useState(false);
   const [showSettingsModal, setShowSettingsModal] = React.useState(false);
-  const [systemPrompt, setSystemPrompt] = React.useState(
+  const [systemPrompt] = React.useState(
     'You are a helpful and creative assistant named Velure Studio. Your responses should be concise, professional, and elegant, matching the studio\'s aesthetic. You must follow the user\'s requests precisely.'
   );
-  const [tempPrompt, setTempPrompt] = React.useState(systemPrompt);
   const [tempApiKey, setTempApiKey] = React.useState(userApiKey);
   const [copiedMessageIndex, setCopiedMessageIndex] = React.useState(null);
 
@@ -98,7 +97,6 @@ const App = () => {
   };
 
   const saveSettings = () => {
-    setSystemPrompt(tempPrompt);
     userApiKey = tempApiKey;
     localStorage.setItem('geminiApiKey', tempApiKey);
     setShowSettingsModal(false);
@@ -215,7 +213,6 @@ const App = () => {
       React.createElement('button', {
         key: 'settings',
         onClick: () => {
-          setTempPrompt(systemPrompt);
           setTempApiKey(userApiKey);
           setShowSettingsModal(true);
         },
@@ -399,24 +396,6 @@ const App = () => {
             key: 'api-key-help',
             className: "text-xs text-neutral-400 mt-1"
           }, "Get your API key from https://makersuite.google.com/app/apikey")
-        ]),
-
-        // System Prompt Section
-        React.createElement('div', {
-          key: 'prompt-section',
-          className: "mb-4"
-        }, [
-          React.createElement('label', {
-            key: 'prompt-label',
-            className: "block text-sm font-medium text-neutral-300 mb-2"
-          }, "System Prompt"),
-          React.createElement('textarea', {
-            key: 'modal-textarea',
-            value: tempPrompt,
-            onChange: (e) => setTempPrompt(e.target.value),
-            className: "w-full h-32 bg-neutral-900/50 text-neutral-100 p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-600 resize-none",
-            placeholder: "Enter the system prompt here..."
-          })
         ]),
 
         React.createElement('div', {
