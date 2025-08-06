@@ -157,37 +157,102 @@ Once all answers are collected, synthesize them into a single, final message tha
   const generateImage = async () => {
     if (imagePrompt.trim() === '' || isImageLoading) return;
 
-    // Check if API key is set
-    if (!userApiKey) {
-      alert('Please set your Gemini API key in the settings (⚙️) to generate images.');
-      return;
-    }
-
     setGeneratedImage(null); // Clear previous image
     setIsImageLoading(true);
 
     try {
-      // Use a free image generation API since Gemini doesn't support direct image generation
-      const apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1';
-      
-      const response = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
+      // Try multiple image generation APIs as fallback
+      const apis = [
+        {
+          url: 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
         },
-        body: JSON.stringify({
-          inputs: imagePrompt
-        })
-      });
+        {
+          url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
+        },
+        {
+          url: 'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4',
+          headers: { 'Content-Type': 'application/json' },
+          body: { inputs: imagePrompt }
+        }
+      ];
 
-      if (!response.ok) {
-        throw new Error(`Image generation failed: ${response.status} ${response.statusText}`);
+      let lastError = null;
+
+      for (const api of apis) {
+        try {
+          console.log('Trying API:', api.url);
+          
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+          
+          const response = await fetch(api.url, {
+            method: 'POST',
+            headers: api.headers,
+            body: JSON.stringify(api.body),
+            signal: controller.signal
+          });
+          
+          clearTimeout(timeoutId);
+
+          console.log('Response status:', response.status);
+          console.log('Response headers:', response.headers);
+
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('API Error Response:', errorText);
+            throw new Error(`API ${response.status}: ${response.statusText}`);
+          }
+
+          // Get the image as blob
+          const imageBlob = await response.blob();
+          console.log('Image blob size:', imageBlob.size);
+          
+          if (imageBlob.size === 0) {
+            throw new Error('Empty image response');
+          }
+
+          const imageUrl = URL.createObjectURL(imageBlob);
+          setGeneratedImage(imageUrl);
+          console.log('Image generated successfully');
+          return; // Success, exit the function
+
+        } catch (error) {
+          console.error('API attempt failed:', error);
+          lastError = error;
+          continue; // Try next API
+        }
       }
 
-      // Get the image as blob
-      const imageBlob = await response.blob();
-      const imageUrl = URL.createObjectURL(imageBlob);
-      setGeneratedImage(imageUrl);
+      // If all APIs failed, create a simple placeholder image
+      console.log('All APIs failed, creating placeholder image');
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      
+      // Create a gradient background
+      const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+      gradient.addColorStop(0, '#667eea');
+      gradient.addColorStop(1, '#764ba2');
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, 512, 512);
+      
+      // Add text
+      ctx.fillStyle = 'white';
+      ctx.font = '24px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText('Image Generation', 256, 200);
+      ctx.fillText('API Unavailable', 256, 240);
+      ctx.font = '16px Arial';
+      ctx.fillText('Try again later', 256, 280);
+      
+      const placeholderUrl = canvas.toDataURL('image/png');
+      setGeneratedImage(placeholderUrl);
+      return;
 
     } catch (error) {
       console.error('Error during image generation:', error);
