@@ -48,7 +48,7 @@ Then, guide the user step-by-step through the following categories to fully unde
 8. Overall Vibe:
 - Ask: “Any overall aesthetic or creative direction you want to emphasize?” (e.g., futuristic, nostalgic, surreal, minimal, editorial)
 
-Once all answers are collected, synthesize them into a world-class, studio-level image prompt. Prioritize clarity, creativity, and cohesion. Always aim for high-end fashion or commercial quality.
+Once all answers are collected, synthesize them into a single, final message that contains a complete, standalone image prompt. This prompt should be ready to copy-paste into an AI image generator and must reflect a high-end commercial or editorial visual standard. Prioritize clarity, creativity, and cohesion.
   `);
   const [tempApiKey, setTempApiKey] = React.useState(userApiKey);
   const [copiedMessageIndex, setCopiedMessageIndex] = React.useState(null);
@@ -166,80 +166,38 @@ Once all answers are collected, synthesize them into a world-class, studio-level
     setGeneratedImage(null); // Clear previous image
     setIsImageLoading(true);
 
-    // For image generation, we need to use a different approach
-    // Gemini doesn't directly generate images, but we can use it to create prompts
-    // and then use a different service or approach
     try {
-      // First, let's use Gemini to enhance the prompt
-      const enhancedPromptPayload = {
-        contents: [{
-          parts: [{
-            text: `You are an expert image prompt engineer. Take this user's image description and enhance it into a detailed, professional image generation prompt that would work well with AI image generators like DALL-E, Midjourney, or Stable Diffusion. Make it specific, detailed, and include technical terms for lighting, composition, style, etc.
-
-User's description: ${imagePrompt}
-
-Please provide only the enhanced prompt, nothing else.`
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 500,
-        }
-      };
-
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${userApiKey}`;
-
-      const retryFetch = async (url, options, retries = 3, delay = 1000) => {
-        try {
-          const response = await fetch(url, options);
-          if (response.status === 429 && retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return retryFetch(url, options, retries - 1, delay * 2);
-          }
-          return response;
-        } catch (error) {
-          if (retries > 0) {
-            await new Promise(resolve => setTimeout(resolve, delay));
-            return retryFetch(url, options, retries - 1, delay * 2);
-          }
-          throw error;
-        }
-      };
-
-      const response = await retryFetch(apiUrl, {
+      // Use a free image generation API (Hugging Face)
+      const apiUrl = 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5';
+      
+      const response = await fetch(apiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(enhancedPromptPayload)
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer hf_demo' // Using demo token for free access
+        },
+        body: JSON.stringify({
+          inputs: imagePrompt,
+          parameters: {
+            num_inference_steps: 50,
+            guidance_scale: 7.5,
+            width: 512,
+            height: 512
+          }
+        })
       });
-      
+
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error Response:', errorText);
-        throw new Error(`API error: ${response.status} ${response.statusText}`);
+        throw new Error(`Image generation failed: ${response.status} ${response.statusText}`);
       }
-      
-      const result = await response.json();
-      console.log('Enhanced prompt response:', result);
-      
-      if (result.candidates && result.candidates.length > 0 && 
-          result.candidates[0].content && result.candidates[0].content.parts && 
-          result.candidates[0].content.parts.length > 0) {
-        const enhancedPrompt = result.candidates[0].content.parts[0].text;
-        
-        // For now, we'll show the enhanced prompt since direct image generation
-        // requires additional services. You can copy this prompt to use with
-        // services like DALL-E, Midjourney, or other AI image generators.
-        setGeneratedImage('enhanced-prompt');
-        setImagePrompt(enhancedPrompt); // Update the input with the enhanced prompt
-      } else {
-        console.error('Error enhancing prompt: Invalid API response format.', result);
-        setGeneratedImage('error');
-      }
+
+      // Get the image as blob
+      const imageBlob = await response.blob();
+      const imageUrl = URL.createObjectURL(imageBlob);
+      setGeneratedImage(imageUrl);
 
     } catch (error) {
-      console.error('Error during prompt enhancement:', error);
+      console.error('Error during image generation:', error);
       setGeneratedImage('error');
     } finally {
       setIsImageLoading(false);
@@ -363,12 +321,12 @@ Please provide only the enhanced prompt, nothing else.`
           React.createElement('h3', {
             key: 'image-title',
             className: "text-lg font-bold text-neutral-200"
-          }, "Prompt Enhancement"),
+          }, "Image Generation"),
           React.createElement('textarea', {
             key: 'image-prompt',
             value: imagePrompt,
             onChange: (e) => setImagePrompt(e.target.value),
-            placeholder: userApiKey ? "Describe the image you want to create..." : "Set API key in settings to enhance prompts...",
+            placeholder: userApiKey ? "Describe the image you want to create..." : "Set API key in settings to generate images...",
             className: "flex-1 w-full bg-neutral-900/50 text-neutral-100 placeholder-neutral-500 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-neutral-600 transition-colors duration-300 resize-none",
             disabled: isImageLoading || !userApiKey
           }),
@@ -377,7 +335,7 @@ Please provide only the enhanced prompt, nothing else.`
             onClick: generateImage,
             className: "px-6 py-2 bg-neutral-700 text-neutral-100 rounded-full font-semibold hover:bg-neutral-600 transition-all duration-300",
             disabled: isImageLoading || !userApiKey
-          }, isImageLoading ? 'Enhancing...' : 'Enhance Prompt')
+          }, isImageLoading ? 'Generating...' : 'Generate Image')
         ]),
         React.createElement('div', {
           key: 'image-display',
@@ -387,32 +345,12 @@ Please provide only the enhanced prompt, nothing else.`
             React.createElement('div', {
               key: 'image-loading',
               className: "text-neutral-400 text-lg animate-pulse"
-            }, "Enhancing prompt...") :
+            }, "Generating image...") :
           generatedImage === 'error' ? 
             React.createElement('div', {
               key: 'image-error',
               className: "text-red-400 text-lg"
-            }, "Error enhancing prompt. Please try again.") :
-          generatedImage === 'enhanced-prompt' ?
-            React.createElement('div', {
-              key: 'enhanced-prompt-display',
-              className: "w-full h-full flex flex-col items-center justify-center p-4"
-            }, [
-              React.createElement('h4', {
-                key: 'enhanced-title',
-                className: "text-lg font-semibold text-neutral-200 mb-4"
-              }, "Enhanced Prompt"),
-              React.createElement('div', {
-                key: 'enhanced-prompt-text',
-                className: "bg-neutral-900/50 p-4 rounded-lg max-w-full max-h-64 overflow-y-auto text-sm text-neutral-200 leading-relaxed"
-              }, imagePrompt),
-              React.createElement('button', {
-                key: 'copy-prompt',
-                onClick: () => copyToClipboard(imagePrompt, 'prompt'),
-                className: "mt-4 px-4 py-2 bg-neutral-700 text-neutral-100 rounded-full font-semibold hover:bg-neutral-600 transition-all duration-300",
-                title: "Copy enhanced prompt to clipboard"
-              }, "Copy Prompt")
-            ]) :
+                          }, "Error generating image. Please try again.") :
           generatedImage ? 
             React.createElement('img', {
               key: 'generated-image',
@@ -427,11 +365,11 @@ Please provide only the enhanced prompt, nothing else.`
               React.createElement('p', {
                 key: 'placeholder-text',
                 className: "mb-2"
-              }, "Enter a description and I'll enhance it into a professional image prompt."),
+              }, "Enter a description and I'll generate an image for you."),
               React.createElement('p', {
                 key: 'placeholder-subtext',
                 className: "text-sm text-neutral-500"
-              }, "You can then use this prompt with AI image generators like DALL-E, Midjourney, or Stable Diffusion.")
+              }, "Powered by Stable Diffusion AI.")
             ])
         ])
       ])
