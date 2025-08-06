@@ -168,69 +168,123 @@ Once all answers are collected, synthesize them into a single, final message tha
     setIsImageLoading(true);
 
     try {
-            // Try multiple free image generation APIs
-      console.log('Trying free image generation APIs...');
+            // Use Gemini API for image generation
+      console.log('Using Gemini API for image generation...');
       
-      const apis = [
-        {
-          url: 'https://api-inference.huggingface.co/models/runwayml/stable-diffusion-v1-5',
-          headers: { 'Content-Type': 'application/json' },
-          body: { inputs: imagePrompt }
-        },
-        {
-          url: 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1',
-          headers: { 'Content-Type': 'application/json' },
-          body: { inputs: imagePrompt }
-        },
-        {
-          url: 'https://api-inference.huggingface.co/models/CompVis/stable-diffusion-v1-4',
-          headers: { 'Content-Type': 'application/json' },
-          body: { inputs: imagePrompt }
-        }
-      ];
-
-      let lastError = null;
-
-      for (const api of apis) {
-        try {
-          console.log(`Trying API: ${api.url}`);
-          
-          const response = await fetch(api.url, {
-            method: 'POST',
-            headers: api.headers,
-            body: JSON.stringify(api.body)
-          });
-
-          console.log('Response status:', response.status);
-
-          if (!response.ok) {
-            console.log(`API failed with status ${response.status}, trying next...`);
-            lastError = new Error(`API ${response.status}: ${response.statusText}`);
-            continue;
+      if (!userApiKey) {
+        console.log('No Gemini API key found, creating placeholder...');
+        // Create placeholder image
+        const canvas = document.createElement('canvas');
+        canvas.width = 512;
+        canvas.height = 512;
+        const ctx = canvas.getContext('2d');
+        
+        // Create a beautiful gradient background
+        const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+        gradient.addColorStop(0, '#667eea');
+        gradient.addColorStop(1, '#764ba2');
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 512, 512);
+        
+        // Add the prompt text
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 18px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText('AI Generated Image', 256, 150);
+        
+        ctx.font = '14px Arial';
+        ctx.fillText('Prompt:', 256, 180);
+        
+        // Split long prompts into multiple lines
+        const words = imagePrompt.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        for (const word of words) {
+          if ((currentLine + word).length > 30) {
+            lines.push(currentLine);
+            currentLine = word;
+          } else {
+            currentLine += (currentLine ? ' ' : '') + word;
           }
-
-          // Get the image as blob
-          const imageBlob = await response.blob();
-          console.log('Image blob size:', imageBlob.size);
-          
-          if (imageBlob.size === 0) {
-            throw new Error('Empty image response');
-          }
-
-          const imageUrl = URL.createObjectURL(imageBlob);
-          setGeneratedImage(imageUrl);
-          console.log('Image generated successfully');
-          return; // Success, exit the function
-
-        } catch (error) {
-          console.error('API attempt failed:', error);
-          lastError = error;
-          continue; // Try next API
         }
+        if (currentLine) lines.push(currentLine);
+        
+        ctx.font = '12px Arial';
+        lines.forEach((line, index) => {
+          ctx.fillText(line, 256, 200 + (index * 20));
+        });
+        
+        ctx.font = '12px Arial';
+        ctx.fillText('Powered by Gemini AI', 256, 450);
+        
+        const placeholderUrl = canvas.toDataURL('image/png');
+        setGeneratedImage(placeholderUrl);
+        return;
       }
 
-      // If all APIs failed, create a placeholder image
-      console.log('All free APIs failed, creating placeholder image...');
+      // Use the main Gemini image generation model
+      console.log('Using Gemini image generation model...');
+      
+      const model = 'gemini-2.0-flash-preview-image-generation';
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${userApiKey}`;
+      
+      const payload = {
+        contents: [{
+          parts: [{
+            text: `Generate an image: ${imagePrompt}`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
+        }
+      };
+
+      console.log('Sending request to Gemini API...');
+      console.log('API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`API ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Image generation response:', result);
+
+      if (result.candidates && result.candidates.length > 0 && 
+          result.candidates[0].content && result.candidates[0].content.parts && 
+          result.candidates[0].content.parts.length > 0) {
+        
+        // Look for image data in the response
+        const imagePart = result.candidates[0].content.parts.find(part => part.inlineData);
+        
+        if (imagePart && imagePart.inlineData) {
+          const imageData = imagePart.inlineData.data;
+          const imageUrl = `data:image/png;base64,${imageData}`;
+          setGeneratedImage(imageUrl);
+          console.log('Image generated successfully');
+        } else {
+          console.error('No image data found in response. Full response:', result);
+          throw new Error('Gemini returned text instead of image');
+        }
+      } else {
+        console.error('Error generating image: Invalid API response format.', result);
+        throw new Error('Invalid API response format');
+      }
       
       const canvas = document.createElement('canvas');
       canvas.width = 512;
