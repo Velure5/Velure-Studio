@@ -157,67 +157,121 @@ Once all answers are collected, synthesize them into a single, final message tha
   const generateImage = async () => {
     if (imagePrompt.trim() === '' || isImageLoading) return;
 
+    // Check if API key is set
+    if (!userApiKey) {
+      alert('Please set your Gemini API key in the settings (⚙️) to generate images.');
+      return;
+    }
+
     setGeneratedImage(null); // Clear previous image
     setIsImageLoading(true);
 
     try {
-      // For now, create a placeholder image since Gemini image generation is complex
-      // This will show that the functionality works while we figure out the API
-      console.log('Creating placeholder image for:', imagePrompt);
+      // Use Gemini's image generation model
+      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${userApiKey}`;
       
-      const canvas = document.createElement('canvas');
-      canvas.width = 512;
-      canvas.height = 512;
-      const ctx = canvas.getContext('2d');
-      
-      // Create a beautiful gradient background
-      const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-      gradient.addColorStop(0, '#667eea');
-      gradient.addColorStop(1, '#764ba2');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, 512, 512);
-      
-      // Add some decorative elements
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
-      ctx.beginPath();
-      ctx.arc(256, 256, 150, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Add the prompt text
-      ctx.fillStyle = 'white';
-      ctx.font = 'bold 20px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText('AI Generated Image', 256, 180);
-      
-      ctx.font = '16px Arial';
-      ctx.fillText('Prompt:', 256, 220);
-      
-      // Split long prompts into multiple lines
-      const words = imagePrompt.split(' ');
-      const lines = [];
-      let currentLine = '';
-      
-      for (const word of words) {
-        if ((currentLine + word).length > 30) {
-          lines.push(currentLine);
-          currentLine = word;
-        } else {
-          currentLine += (currentLine ? ' ' : '') + word;
+      const payload = {
+        contents: [{
+          parts: [{
+            text: `Generate an image based on this description: ${imagePrompt}. Please create a high-quality, detailed image.`
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          topK: 40,
+          topP: 0.95,
+          maxOutputTokens: 2048,
         }
-      }
-      if (currentLine) lines.push(currentLine);
+      };
+
+      console.log('Sending request to Gemini API...');
+      console.log('API URL:', apiUrl);
+      console.log('Payload:', payload);
       
-      ctx.font = '14px Arial';
-      lines.forEach((line, index) => {
-        ctx.fillText(line, 256, 250 + (index * 20));
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
-      
-      ctx.font = '12px Arial';
-      ctx.fillText('Powered by Gemini AI', 256, 450);
-      
-      const placeholderUrl = canvas.toDataURL('image/png');
-      setGeneratedImage(placeholderUrl);
-      console.log('Placeholder image created successfully');
+
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Image generation failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      console.log('Image generation response:', result);
+
+      if (result.candidates && result.candidates.length > 0 && 
+          result.candidates[0].content && result.candidates[0].content.parts && 
+          result.candidates[0].content.parts.length > 0) {
+        
+        // Look for image data in the response
+        const imagePart = result.candidates[0].content.parts.find(part => part.inlineData);
+        
+        if (imagePart && imagePart.inlineData) {
+          const imageData = imagePart.inlineData.data;
+          const imageUrl = `data:image/png;base64,${imageData}`;
+          setGeneratedImage(imageUrl);
+          console.log('Image generated successfully');
+        } else {
+          console.error('No image data found in response. Full response:', result);
+          // If no image data, create a placeholder with the text response
+          const textResponse = result.candidates[0].content.parts[0].text;
+          console.log('Text response received:', textResponse);
+          
+          // Create a placeholder image with the text response
+          const canvas = document.createElement('canvas');
+          canvas.width = 512;
+          canvas.height = 512;
+          const ctx = canvas.getContext('2d');
+          
+          // Create a beautiful gradient background
+          const gradient = ctx.createLinearGradient(0, 0, 512, 512);
+          gradient.addColorStop(0, '#667eea');
+          gradient.addColorStop(1, '#764ba2');
+          ctx.fillStyle = gradient;
+          ctx.fillRect(0, 0, 512, 512);
+          
+          // Add the text response
+          ctx.fillStyle = 'white';
+          ctx.font = 'bold 16px Arial';
+          ctx.textAlign = 'center';
+          ctx.fillText('Gemini Response:', 256, 150);
+          
+          // Split text into lines
+          const words = textResponse.split(' ');
+          const lines = [];
+          let currentLine = '';
+          
+          for (const word of words) {
+            if ((currentLine + word).length > 40) {
+              lines.push(currentLine);
+              currentLine = word;
+            } else {
+              currentLine += (currentLine ? ' ' : '') + word;
+            }
+          }
+          if (currentLine) lines.push(currentLine);
+          
+          ctx.font = '14px Arial';
+          lines.forEach((line, index) => {
+            ctx.fillText(line, 256, 180 + (index * 20));
+          });
+          
+          const placeholderUrl = canvas.toDataURL('image/png');
+          setGeneratedImage(placeholderUrl);
+        }
+      } else {
+        console.error('Error generating image: Invalid API response format.', result);
+        setGeneratedImage('error');
+      }
 
     } catch (error) {
       console.error('Error during image generation:', error);
