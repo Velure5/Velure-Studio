@@ -7,7 +7,7 @@ let userApiKey = localStorage.getItem('geminiApiKey') || '';
 const App = () => {
   // --- Chat State and Logic ---
   const [chatHistory, setChatHistory] = React.useState([
-    { role: 'assistant', parts: [{ text: "Welcome to Velure Studio. Let's craft your perfect visual. To begin, what is the general context or concept of the image you'd like to create?" }] },
+    { role: 'model', parts: [{ text: "Welcome to Velure Studio. Let's craft your perfect visual. To begin, what is the general context or concept of the image you'd like to create?" }] },
   ]);
   const [messageInput, setMessageInput] = React.useState('');
   const [isChatLoading, setIsChatLoading] = React.useState(false);
