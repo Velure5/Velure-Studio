@@ -167,60 +167,27 @@ Once all answers are collected, synthesize them into a single, final message tha
     setIsImageLoading(true);
 
     try {
-      // Use Gemini's image generation model
-      const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${userApiKey}`;
+      // Use a free image generation API since Gemini doesn't support direct image generation
+      const apiUrl = 'https://api-inference.huggingface.co/models/stabilityai/stable-diffusion-2-1';
       
-      const payload = {
-        contents: [{
-          parts: [{
-            text: imagePrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.4,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 2048,
-        },
-        responseModalities: ["TEXT", "IMAGE"]
-      };
-
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          inputs: imagePrompt
+        })
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Error Response:', errorText);
         throw new Error(`Image generation failed: ${response.status} ${response.statusText}`);
       }
 
-      const result = await response.json();
-      console.log('Image generation response:', result);
-
-      if (result.candidates && result.candidates.length > 0 && 
-          result.candidates[0].content && result.candidates[0].content.parts && 
-          result.candidates[0].content.parts.length > 0) {
-        
-        // Look for image data in the response
-        const imagePart = result.candidates[0].content.parts.find(part => part.inlineData);
-        
-        if (imagePart && imagePart.inlineData) {
-          const imageData = imagePart.inlineData.data;
-          const imageUrl = `data:image/png;base64,${imageData}`;
-          setGeneratedImage(imageUrl);
-        } else {
-          console.error('No image data found in response:', result);
-          setGeneratedImage('error');
-        }
-      } else {
-        console.error('Error generating image: Invalid API response format.', result);
-        setGeneratedImage('error');
-      }
+      // Get the image as blob
+      const imageBlob = await response.blob();
+      const imageUrl = URL.createObjectURL(imageBlob);
+      setGeneratedImage(imageUrl);
 
     } catch (error) {
       console.error('Error during image generation:', error);
@@ -324,7 +291,8 @@ Once all answers are collected, synthesize them into a single, final message tha
             onKeyDown: (e) => e.key === 'Enter' && sendMessage(),
             placeholder: userApiKey ? "Send a message..." : "Set API key in settings to chat...",
             className: "flex-1 bg-neutral-900/50 text-neutral-100 placeholder-neutral-500 rounded-full py-2 px-4 focus:outline-none focus:ring-2 focus:ring-neutral-600 transition-colors duration-300",
-            disabled: isChatLoading || !userApiKey
+            disabled: isChatLoading || !userApiKey,
+            autoComplete: "off"
           }),
           React.createElement('button', {
             key: 'send-button',
@@ -354,7 +322,8 @@ Once all answers are collected, synthesize them into a single, final message tha
             onChange: (e) => setImagePrompt(e.target.value),
             placeholder: userApiKey ? "Describe the image you want to create..." : "Set API key in settings to generate images...",
             className: "flex-1 w-full bg-neutral-900/50 text-neutral-100 placeholder-neutral-500 rounded-md py-2 px-4 focus:outline-none focus:ring-2 focus:ring-neutral-600 transition-colors duration-300 resize-none",
-            disabled: isImageLoading || !userApiKey
+            disabled: isImageLoading || !userApiKey,
+            autoComplete: "off"
           }),
           React.createElement('button', {
             key: 'generate-button',
@@ -413,7 +382,7 @@ Once all answers are collected, synthesize them into a single, final message tha
               React.createElement('p', {
                 key: 'placeholder-subtext',
                 className: "text-sm text-neutral-500"
-              }, "Powered by Gemini AI.")
+              }, "Powered by Stable Diffusion AI.")
             ])
         ])
       ])
@@ -448,7 +417,8 @@ Once all answers are collected, synthesize them into a single, final message tha
             value: tempApiKey,
             onChange: (e) => setTempApiKey(e.target.value),
             className: "w-full bg-neutral-900/50 text-neutral-100 p-3 rounded-md focus:outline-none focus:ring-2 focus:ring-neutral-600",
-            placeholder: "Enter your Gemini API key..."
+            placeholder: "Enter your Gemini API key...",
+            autoComplete: "new-password"
           }),
           React.createElement('p', {
             key: 'api-key-help',
